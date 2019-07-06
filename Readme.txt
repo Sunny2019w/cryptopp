@@ -1,5 +1,5 @@
 Crypto++: free C++ Class Library of Cryptographic Schemes
-Version 8.1 - FEB/22/2019
+Version 8.3 - TBD
 
 Crypto++ Library is a free C++ class library of cryptographic schemes.
 Currently the library contains the following algorithms:
@@ -205,23 +205,29 @@ library in your programs to help avoid unwanted redirections.
 
 *** Side Channel Attacks ***
 
-Crypto++ attempts to resist side channel attacks using various remediations. We
-believe the library is mostly hardened but the remdiations may be incomplete. The
-first line of defense uses hardware instructions when possible for block ciphers,
-hashes and other primitives. Hardware acceleration remediates many timing attacks.
-The library also uses cache-aware algoirthms and access patterns to minimize leakage.
+Crypto++ attempts to resist side channel attacks using various remediations.
+The remdiations are applied as a best effort but are probably incomplete. They
+are incomplete due to cpu speculation bugs like Spectre, Meltdown, Foreshadow.
+The attacks target both cpu caches and internal buffers. Intel generally refers
+to internal buffer attacks as "Microarchitectural Data Sampling" (MDS).
 
-Some of the public key algorithms have branches and some of the branches depend on
-data that can be private or secret. The branching occurs in some field operations
-like exponentiation over integers and elliptic curves. The branching has been
-minimized but not completely eliminated.
+The library uses hardware instructions when possible for block ciphers, hashes
+and other operations. The hardware acceleration remediates some timing
+attacks. The library also uses cache-aware algoirthms and access patterns
+to minimize leakage cache evictions.
 
-Crypto++ does not enagage Specter remediations at this time. The GCC options for
-Specter are -mfunction-return=thunk and -mindirect-branch=thunk, and the library
-uses them during testing. If you want the Specter workarounds then add the GCC
-options to your CXXFLAGS when building the library.
+Some of the public key algorithms have branches and some of the branches depend
+on data that can be private or secret. The branching occurs in some field
+operations like exponentiation over integers and elliptic curves. The branching
+has been minimized but not completely eliminated.
 
-If you suspect or find an information leak then please report it.
+Crypto++ does not enagage Specter remediations at this time. The GCC options
+for Specter are -mfunction-return=thunk and -mindirect-branch=thunk, and the
+library uses them during testing. If you want the Specter workarounds then add
+the GCC options to your CXXFLAGS when building the library.
+
+To help resist attacks you should disable hyperthreading on cpus. If you
+suspect or find an information leak then please report it.
 
 *** Documentation and Support ***
 
@@ -289,6 +295,19 @@ documentation is one of the highest returns on investment.
 
 The items in this section comprise the most recent history. Please see History.txt
 for the record back to Crypto++ 1.0.
+
+8.2.0 - April 28, 2019
+      - minor release, no recompile of programs required
+      - expanded community input and support
+        * 56 unique contributors as of this release
+      - use PowerPC unaligned loads and stores with Power8
+      - add SKIPJACK test vectors
+      - fix SHAKE-128 and SHAKE-256 compile
+      - removed IS_NEON from Makefile
+      - fix Aarch64 build on Fedora 29
+      - fix missing GF2NT_233_Multiply_Reduce_CLMUL in FIPS DLL
+      - add missing BLAKE2 constructors
+      - fix missing BlockSize() in BLAKE2 classes
 
 8.1.0 - February 22, 2019
       - minor release, no recompile of programs required

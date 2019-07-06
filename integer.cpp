@@ -18,13 +18,13 @@
 // For Integer::Zero(), Integer::One() and Integer::Two(), we use one of three
 //  strategies. First, if initialization priorities are available then we use
 //  them. Initialization priorities are init_priority() on Linux and init_seg()
-//  on Windows. AIX, OS X and several other platforms lack them. Initialization
+//  on Windows. OS X and several other platforms lack them. Initialization
 //  priorities are platform specific but they are also the most trouble free
 //  with determisitic destruction.
 // Second, if C++11 dynamic initialization is available, then we use it. After
-//  the std::call_once fiasco we dropped the priority dynamic initialization
-//  to avoid unknown troubles platforms that are tested less frequently. In
-//  addition Microsoft platforms mostly do not provide dynamic initialization.
+//  the std::call_once fiasco we moved to dynamic initialization to avoid
+//  unknown troubles platforms that are tested less frequently. In addition
+//  Microsoft platforms mostly do not provide dynamic initialization.
 //  The MSDN docs claim they do but they don't in practice because we need
 //  Visual Studio 2017 and Windows 10 or above.
 // Third, we fall back to Wei's original code of a Singleton. Wei's original
@@ -45,6 +45,12 @@
 //  thousands of times during the life of a program. Each load produces a
 //  memory leak and they can add up quickly. If they library is being used in
 //  Java or .Net then Singleton must be avoided at all costs.
+//
+// The code below has a path cut-in for BMI2 using mulx and adcx instructions.
+//  There was a modest speedup of approximately 0.03 ms in public key Integer
+//  operations. We had to disable BMI2 for the moment because some OS X machines
+//  were advertising BMI/BMI2 support but caused SIGILL's at runtime. Also see
+//  https://github.com/weidai11/cryptopp/issues/850.
 
 #include "pch.h"
 #include "config.h"
@@ -77,7 +83,8 @@
 	#include <c_asm.h>
 #endif
 
-// "Error: The operand ___LKDB cannot be assigned to", http://github.com/weidai11/cryptopp/issues/188
+// "Error: The operand ___LKDB cannot be assigned to",
+// http://github.com/weidai11/cryptopp/issues/188
 #if (__SUNPRO_CC >= 0x5130)
 # define MAYBE_CONST
 # define MAYBE_UNCONST_CAST(x) const_cast<word*>(x)
@@ -87,7 +94,7 @@
 #endif
 
 // "Inline assembly operands don't work with .intel_syntax",
-//   http://llvm.org/bugs/show_bug.cgi?id=24232
+//  http://llvm.org/bugs/show_bug.cgi?id=24232
 #if CRYPTOPP_BOOL_X32 || defined(CRYPTOPP_DISABLE_MIXED_ASM)
 # undef CRYPTOPP_X86_ASM_AVAILABLE
 # undef CRYPTOPP_X32_ASM_AVAILABLE
@@ -211,6 +218,13 @@ static word AtomicInverseModPower2(word A)
 		#if defined(__SUNPRO_CC) && __SUNPRO_CC < 0x5100
 			// Sun Studio's gcc-style inline assembly is heavily bugged as of version 5.9 Patch 124864-09 2008/12/16, but this one works
 			#define MultiplyWordsLoHi(p0, p1, a, b)		asm ("mulq %3" : "=a"(p0), "=d"(p1) : "a"(a), "r"(b) : "cc");
+		#elif defined(__BMI2__) && 0
+			#define MultiplyWordsLoHi(p0, p1, a, b)		asm ("mulxq %3, %0, %1" : "=r"(p0), "=r"(p1) : "d"(a), "r"(b));
+			#define MulAcc(c, d, a, b)		asm ("mulxq %6, %3, %4; addq %3, %0; adcxq %4, %1; adcxq %7, %2;" : "+&r"(c), "+&r"(d##0), "+&r"(d##1), "=&r"(p0), "=&r"(p1) : "d"(a), "r"(b), "r"(W64LIT(0)) : "cc");
+			#define Double3Words(c, d)		asm ("addq %0, %0; adcxq %1, %1; adcxq %2, %2;" : "+r"(c), "+r"(d##0), "+r"(d##1) : : "cc");
+			#define Acc2WordsBy1(a, b)		asm ("addq %2, %0; adcxq %3, %1;" : "+&r"(a##0), "+r"(a##1) : "r"(b), "r"(W64LIT(0)) : "cc");
+			#define Acc2WordsBy2(a, b)		asm ("addq %2, %0; adcxq %3, %1;" : "+r"(a##0), "+r"(a##1) : "r"(b##0), "r"(b##1) : "cc");
+			#define Acc3WordsBy2(c, d, e)	asm ("addq %5, %0; adcxq %6, %1; adcxq %7, %2;" : "+r"(c), "=&r"(e##0), "=&r"(e##1) : "1"(d##0), "2"(d##1), "r"(e##0), "r"(e##1), "r"(W64LIT(0)) : "cc");
 		#else
 			#define MultiplyWordsLoHi(p0, p1, a, b)		asm ("mulq %3" : "=a"(p0), "=d"(p1) : "a"(a), "g"(b) : "cc");
 			#define MulAcc(c, d, a, b)		asm ("mulq %6; addq %3, %0; adcq %4, %1; adcq $0, %2;" : "+r"(c), "+r"(d##0), "+r"(d##1), "=a"(p0), "=d"(p1) : "a"(a), "g"(b) : "cc");
@@ -3537,9 +3551,9 @@ class KDF2_RNG : public RandomNumberGenerator
 {
 public:
 	KDF2_RNG(const byte *seed, size_t seedSize)
-		: m_counter(0), m_counterAndSeed(seedSize + 4)
+		: m_counter(0), m_counterAndSeed(ClampSize(seedSize) + 4)
 	{
-		memcpy(m_counterAndSeed + 4, seed, seedSize);
+		memcpy(m_counterAndSeed + 4, seed, ClampSize(seedSize));
 	}
 
 	void GenerateBlock(byte *output, size_t size)
@@ -3548,6 +3562,15 @@ public:
 		PutWord(false, BIG_ENDIAN_ORDER, m_counterAndSeed, m_counter);
 		++m_counter;
 		P1363_KDF2<SHA1>::DeriveKey(output, size, m_counterAndSeed, m_counterAndSeed.size(), NULLPTR, 0);
+	}
+
+	// UBsan finding, -Wstringop-overflow
+	inline size_t ClampSize(size_t req) const
+	{
+		// Clamp at 16 MB
+		if (req > 16U*1024*1024)
+			return 16U*1024*1024;
+		return req;
 	}
 
 private:
