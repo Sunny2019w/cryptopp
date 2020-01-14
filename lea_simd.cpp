@@ -34,17 +34,18 @@
 # include <immintrin.h>
 #endif
 
-// C1189: error: This header is specific to ARM targets
-#if (CRYPTOPP_ARM_NEON_AVAILABLE)
+#if (CRYPTOPP_ARM_NEON_HEADER)
 # include "adv_simd.h"
-# ifndef _M_ARM64
-#  include <arm_neon.h>
-# endif
+# include <arm_neon.h>
 #endif
 
-#if (CRYPTOPP_ARM_ACLE_AVAILABLE)
+#if (CRYPTOPP_ARM_ACLE_HEADER)
 # include <stdint.h>
 # include <arm_acle.h>
+#endif
+
+#if defined(_M_ARM64)
+# include "adv_simd.h"
 #endif
 
 // Do not port this to POWER architecture. Naively we hoped
@@ -181,7 +182,7 @@ template <unsigned int IDX>
 inline uint32x4_t UnpackNEON(const uint32x4_t& a, const uint32x4_t& b, const uint32x4_t& c, const uint32x4_t& d)
 {
     // Should not be instantiated
-    CRYPTOPP_ASSERT(0);;
+    CRYPTOPP_ASSERT(0);
     return vmovq_n_u32(0);
 }
 
@@ -221,7 +222,7 @@ template <unsigned int IDX>
 inline uint32x4_t UnpackNEON(const uint32x4_t& v)
 {
     // Should not be instantiated
-    CRYPTOPP_ASSERT(0);;
+    CRYPTOPP_ASSERT(0);
     return vmovq_n_u32(0);
 }
 

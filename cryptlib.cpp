@@ -29,7 +29,6 @@
 
 NAMESPACE_BEGIN(CryptoPP)
 
-CRYPTOPP_COMPILE_ASSERT(SIZE_MAX > 0);
 CRYPTOPP_COMPILE_ASSERT(sizeof(byte) == 1);
 CRYPTOPP_COMPILE_ASSERT(sizeof(word16) == 2);
 CRYPTOPP_COMPILE_ASSERT(sizeof(word32) == 4);
@@ -334,20 +333,20 @@ void RandomNumberGenerator::GenerateIntoBufferedTransformation(BufferedTransform
 	}
 }
 
-size_t KeyDerivationFunction::MinDerivedLength() const
+size_t KeyDerivationFunction::MinDerivedKeyLength() const
 {
 	return 0;
 }
 
-size_t KeyDerivationFunction::MaxDerivedLength() const
+size_t KeyDerivationFunction::MaxDerivedKeyLength() const
 {
 	return static_cast<size_t>(-1);
 }
 
-void KeyDerivationFunction::ThrowIfInvalidDerivedLength(size_t length) const
+void KeyDerivationFunction::ThrowIfInvalidDerivedKeyLength(size_t length) const
 {
 	if (!IsValidDerivedLength(length))
-		throw InvalidDerivedLength(GetAlgorithm().AlgorithmName(), length);
+		throw InvalidDerivedKeyLength(GetAlgorithm().AlgorithmName(), length);
 }
 
 void KeyDerivationFunction::SetParameters(const NameValuePairs& params) {
@@ -771,9 +770,9 @@ size_t BufferedTransformation::PeekWord16(word16 &value, ByteOrder order) const
 	size_t len = Peek(buf, 2);
 
 	if (order == BIG_ENDIAN_ORDER)
-		value = ((word16)buf[0] << 8) | (word16)buf[1];
+		value = word16((buf[0] << 8) | buf[1]);
 	else
-		value = ((word16)buf[1] << 8) | (word16)buf[0];
+		value = word16((buf[1] << 8) | buf[0]);
 
 	return len;
 }
@@ -784,11 +783,11 @@ size_t BufferedTransformation::PeekWord32(word32 &value, ByteOrder order) const
 	size_t len = Peek(buf, 4);
 
 	if (order == BIG_ENDIAN_ORDER)
-		value = ((word32)buf[0] << 24) | ((word32)buf[1] << 16) |
-		        ((word32)buf[2] << 8)  |  (word32)buf[3];
+		value = word32((buf[0] << 24) | (buf[1] << 16) |
+		               (buf[2] << 8)  | (buf[3] << 0));
 	else
-		value = ((word32)buf[3] << 24) | ((word32)buf[2] << 16) |
-		        ((word32)buf[1] << 8)  |  (word32)buf[0];
+		value = word32((buf[3] << 24) | (buf[2] << 16) |
+		               (buf[1] << 8)  | (buf[0] << 0));
 
 	return len;
 }

@@ -22,6 +22,9 @@
 #include "xtrcrypt.h"
 #include "eccrypto.h"
 
+#include "hex.h"
+#include "base64.h"
+
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -302,6 +305,29 @@ bool ValidateElGamal()
 {
 	std::cout << "\nElGamal validation suite running...\n\n";
 	bool pass = true;
+	{
+		// Data from https://github.com/weidai11/cryptopp/issues/876.
+		const std::string encodedPublicKey =
+			"MHYwTwYGKw4HAgEBMEUCIQDebUvQDd9UPMmD27BJ ovZSIgWfexL0SWkfJQPMLsJvMwIgDy/kEthwO6Q+"
+			"L8XHnzumnEKs+txH8QkQD+M/8u82ql0DIwACIAY6 rfW+BTcRZ9QAJovgoB8DgNLJ8ocqOeF4nEBB0DHH";
+		StringSource decodedPublicKey(encodedPublicKey, true, new Base64Decoder);
+
+		ElGamal::PublicKey publicKey;
+		publicKey.Load(decodedPublicKey);
+		pass = publicKey.Validate(GlobalRNG(), 3) && pass;
+	}
+	{
+		// Data from https://github.com/weidai11/cryptopp/issues/876.
+		const std::string encodedPrivateKey =
+			"MHkCAQAwTwYGKw4HAgEBMEUCIQDebUvQDd9UPMmD 27BJovZSIgWfexL0SWkfJQPMLsJvMwIgDy/kEthw"
+			"O6Q+L8XHnzumnEKs+txH8QkQD+M/8u82ql0EIwIh AJb0S4TZLvApTVjXZyocPJ5tUgWgRqScXm5vNqu2"
+			"YqdM";
+		StringSource decodedPrivateKey(encodedPrivateKey, true, new Base64Decoder);
+
+		ElGamal::PrivateKey privateKey;
+		privateKey.Load(decodedPrivateKey);
+		pass = privateKey.Validate(GlobalRNG(), 3) && pass;
+	}
 	{
 		FileSource fc(DataDir("TestData/elgc1024.dat").c_str(), true, new HexDecoder);
 		ElGamalDecryptor privC(fc);
